@@ -587,21 +587,3 @@ void CO_CANinterrupt_Tx(CO_CANmodule_t *CANmodule)
     }
 }
 
-void HAL_CAN_TxCpltCallback(CAN_HandleTypeDef* hcan)
-{
-	CO_CANinterrupt_Tx(CO->CANmodule[0]);
-}
-
-void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef* hcan)
-{
-	CO_CANinterrupt_Rx(CO->CANmodule[0]);
-	
-	/* enable CAN receive interrupts */
-	HAL_CAN_Receive_IT(hcan, CAN_FIFO0);
-}
-
-/* For debug CAN Errors Status*/
-void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
-{
-	can_error = HAL_CAN_GetError(hcan);
-}
