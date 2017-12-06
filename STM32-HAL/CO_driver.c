@@ -66,155 +66,146 @@ CO_ReturnError_t CO_CANmodule_init(
         uint16_t                txSize,
         uint16_t                CANbitRate)
 {
-    uint16_t i;
-		
-		CAN_FilterConfTypeDef  	sFilterConfig;
-		static CanTxMsgTypeDef  TxMessage;
-		static CanRxMsgTypeDef  RxMessage;
+	uint16_t i;
+	
+	CAN_FilterConfTypeDef  	sFilterConfig;
+	static CanTxMsgTypeDef  TxMessage;
+	static CanRxMsgTypeDef  RxMessage;
 
-    /* Configure object variables */
-    CANmodule->CANbaseAddress = CANbaseAddress;
-    CANmodule->rxArray = rxArray;
-    CANmodule->rxSize = rxSize;
-    CANmodule->txArray = txArray;
-    CANmodule->txSize = txSize;
-	  CANmodule->CANnormal = false;
-    CANmodule->useCANrxFilters = (rxSize <= 32U) ? CO_true : CO_false;/* microcontroller dependent */
-    CANmodule->bufferInhibitFlag = CO_false;
-    CANmodule->firstCANtxMessage = CO_true;
-    CANmodule->CANtxCount = 0U;
-    CANmodule->errOld = 0U;
-    CANmodule->em = NULL;
+	/* Configure object variables */
+	CANmodule->CANbaseAddress = CANbaseAddress;
+	CANmodule->rxArray = rxArray;
+	CANmodule->rxSize = rxSize;
+	CANmodule->txArray = txArray;
+	CANmodule->txSize = txSize;
+	CANmodule->CANnormal = false;
+	CANmodule->useCANrxFilters = (rxSize <= 32U) ? CO_true : CO_false;/* microcontroller dependent */
+	CANmodule->bufferInhibitFlag = CO_false;
+	CANmodule->firstCANtxMessage = CO_true;
+	CANmodule->CANtxCount = 0U;
+	CANmodule->errOld = 0U;
+	CANmodule->em = NULL;
 
-    for(i=0U; i<rxSize; i++){
-        rxArray[i].ident = 0U;
-        rxArray[i].pFunct = NULL;
-    }
-    for(i=0U; i<txSize; i++){
-        txArray[i].bufferFull = CO_false;
-    }
-
-    /* Configure CAN module registers */
-		if ( CANbaseAddress == ADDR_CAN1)
+	for(i=0U; i<rxSize; i++)
+	{
+		rxArray[i].ident = 0U;
+		rxArray[i].pFunct = NULL;
+	}
+	for(i=0U; i<txSize; i++)
+	{
+		txArray[i].bufferFull = CO_false;
+	}
+	
+	/* Configure CAN module registers */
+	if ( CANbaseAddress == ADDR_CAN1 )
 			hcan.Instance = CAN;
+	else 
+		return CO_ERROR_ILLEGAL_ARGUMENT;
 		
-		hcan.pTxMsg = &TxMessage;
-		hcan.pRxMsg = &RxMessage;
+	hcan.pTxMsg = &TxMessage;
+	hcan.pRxMsg = &RxMessage;
 		
-		hcan.Init.TTCM = DISABLE;
-		hcan.Init.ABOM = ENABLE;
-		hcan.Init.AWUM = DISABLE;
-		hcan.Init.NART = DISABLE;
-		hcan.Init.RFLM = DISABLE;
-		hcan.Init.TXFP = DISABLE;
+	hcan.Init.TTCM = DISABLE;
+	hcan.Init.ABOM = ENABLE;
+	hcan.Init.AWUM = DISABLE;
+	hcan.Init.NART = DISABLE;
+	hcan.Init.RFLM = DISABLE;
+	hcan.Init.TXFP = DISABLE;
 		
 		
-		if (CANbitRate >= 100 && CANbitRate <= 1000)  
-		{
-			hcan.Init.Prescaler  = (CAN_CLK / 16) / CANbitRate;
+	if (CANbitRate >= 100 && CANbitRate <= 1000)  
+	{
+		hcan.Init.Prescaler  = (CAN_CLK / 16) / CANbitRate;
 
-			/* Load the baudrate registers BTR                                       */
-			/* so that sample point is at about 85% bit time from bit start          */
-			hcan.Init.SJW = CAN_SJW_1TQ;
-			hcan.Init.BS1 = CAN_BS1_13TQ;
-			hcan.Init.BS2 = CAN_BS2_2TQ;
-			//hcan.Init.SJW = CAN_SJW_1TQ;
-			//hcan.Init.BS1 = CAN_BS1_4TQ;
-			//8hcan.Init.BS2 = CAN_BS2_3TQ;
-		}  
-		else 
-			return CO_ERROR_ILLEGAL_ARGUMENT;
+		/* Load the baudrate registers BTR                                       */
+		/* so that sample point is at about 85% bit time from bit start          */
+		hcan.Init.SJW = CAN_SJW_1TQ;
+		hcan.Init.BS1 = CAN_BS1_13TQ;
+		hcan.Init.BS2 = CAN_BS2_2TQ;
+		//hcan.Init.SJW = CAN_SJW_1TQ;
+		//hcan.Init.BS1 = CAN_BS1_4TQ;
+		//8hcan.Init.BS2 = CAN_BS2_3TQ;
+	}  
+	else 
+		return CO_ERROR_ILLEGAL_ARGUMENT;
 
+	hcan.Init.Mode = CAN_MODE_NORMAL;// CAN_MODE_LOOPBACK // CAN_MODE_NORMAL
+	if (HAL_CAN_Init(&hcan) != HAL_OK)
+	{
+		_Error_Handler(__FILE__, __LINE__);
+	}
+
+	/* Configure CAN module hardware filters */		
+	
+	/*********************************/
+	CANmodule->useCANrxFilters = CO_true;
+	/********************************/
+		
+	if(CANmodule->useCANrxFilters)
+	{
+		/* CAN module filters are used, they will be configured with */
+		/* CO_CANrxBufferInit() functions, called by separate CANopen */
+		/* init functions. */
+		/* Configure all masks so, that received message must match filter */
 			
-
-		
-		hcan.Init.Mode = CAN_MODE_NORMAL;// CAN_MODE_LOOPBACK // CAN_MODE_NORMAL
-		if (HAL_CAN_Init(&hcan) != HAL_OK)
-		{
-			Error_Handler();
-		}
-
-    /* Configure CAN module hardware filters */
-		
-		
-		/*********************************/
-		CANmodule->useCANrxFilters = CO_true;
-		/********************************/
-		
-    if(CANmodule->useCANrxFilters)
-		{
-      /* CAN module filters are used, they will be configured with */
-      /* CO_CANrxBufferInit() functions, called by separate CANopen */
-      /* init functions. */
-      /* Configure all masks so, that received message must match filter */
-			
-			sFilterConfig.FilterNumber = 0;
-			sFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
-			sFilterConfig.FilterScale = CAN_FILTERSCALE_16BIT;
-			sFilterConfig.FilterIdHigh = 0x0000;
-			sFilterConfig.FilterIdLow = (0x80 + OD_CANNodeID) << 5;
-			sFilterConfig.FilterMaskIdHigh = (0x200 + OD_CANNodeID) << 5;
-			sFilterConfig.FilterMaskIdLow = (0x300 + OD_CANNodeID) << 5;
-			sFilterConfig.FilterFIFOAssignment = 0;
-			sFilterConfig.FilterActivation = ENABLE;
-			sFilterConfig.BankNumber = 13;
-			HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+		sFilterConfig.FilterNumber = 0;
+		sFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
+		sFilterConfig.FilterScale = CAN_FILTERSCALE_16BIT;
+		sFilterConfig.FilterIdHigh = 0x0000;
+		sFilterConfig.FilterIdLow = (0x80 + OD_CANNodeID) << 5;
+		sFilterConfig.FilterMaskIdHigh = (0x200 + OD_CANNodeID) << 5;
+		sFilterConfig.FilterMaskIdLow = (0x300 + OD_CANNodeID) << 5;
+		sFilterConfig.FilterFIFOAssignment = 0;
+		sFilterConfig.FilterActivation = ENABLE;
+		sFilterConfig.BankNumber = 13;
+		HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
 			
 			
-			sFilterConfig.FilterNumber = 1;
-			sFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
-			sFilterConfig.FilterScale = CAN_FILTERSCALE_16BIT;
-			sFilterConfig.FilterIdHigh = (0x400 + OD_CANNodeID) << 5;
-			sFilterConfig.FilterIdLow = (0x500 + OD_CANNodeID) << 5;
-			sFilterConfig.FilterMaskIdHigh = (0x600 + OD_CANNodeID) << 5;
-			sFilterConfig.FilterMaskIdLow = OD_CANNodeID << 5;
-			sFilterConfig.FilterFIFOAssignment = 0;
-			sFilterConfig.FilterActivation = ENABLE;
-			sFilterConfig.BankNumber = 13;
-			HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+		sFilterConfig.FilterNumber = 1;
+		sFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
+		sFilterConfig.FilterScale = CAN_FILTERSCALE_16BIT;
+		sFilterConfig.FilterIdHigh = (0x400 + OD_CANNodeID) << 5;
+		sFilterConfig.FilterIdLow = (0x500 + OD_CANNodeID) << 5;
+		sFilterConfig.FilterMaskIdHigh = (0x600 + OD_CANNodeID) << 5;
+		sFilterConfig.FilterMaskIdLow = OD_CANNodeID << 5;
+		sFilterConfig.FilterFIFOAssignment = 0;
+		sFilterConfig.FilterActivation = ENABLE;
+		sFilterConfig.BankNumber = 13;
+		HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
 			
-			sFilterConfig.FilterNumber = 2;
-			sFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
-			sFilterConfig.FilterScale = CAN_FILTERSCALE_16BIT;
-			sFilterConfig.FilterIdHigh = (0x77F) << 5;
-			sFilterConfig.FilterIdLow = 0;
-			sFilterConfig.FilterMaskIdHigh = 0;
-			sFilterConfig.FilterMaskIdLow = 0;
-			sFilterConfig.FilterFIFOAssignment = 0;
-			sFilterConfig.FilterActivation = ENABLE;
-			sFilterConfig.BankNumber = 13;
-			HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
-
-			
-			
-    }
-    else
-		{
-			/* CAN module filters are not used, all messages with standard 11-bit */
-      /* identifier will be received */
-      /* Configure mask 0 so, that all messages with standard identifier are accepted */
-			/*##-2- Configure the CAN Filter ###########################################*/
-			sFilterConfig.FilterNumber = 0;
-			sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;//CAN_FILTERMODE_IDMASK CAN_FILTERMODE_IDLIST
-			sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
-			sFilterConfig.FilterIdHigh = 0x0000;
-			sFilterConfig.FilterIdLow = 0x0000;
-			sFilterConfig.FilterMaskIdHigh = 0;
-			sFilterConfig.FilterMaskIdLow = 0x0000;
-			sFilterConfig.FilterFIFOAssignment = 0;
-			sFilterConfig.FilterActivation = ENABLE;
-			sFilterConfig.BankNumber = 13;	
-			
-			HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
-    }
+		sFilterConfig.FilterNumber = 2;
+		sFilterConfig.FilterMode = CAN_FILTERMODE_IDLIST;
+		sFilterConfig.FilterScale = CAN_FILTERSCALE_16BIT;
+		sFilterConfig.FilterIdHigh = (0x77F) << 5;
+		sFilterConfig.FilterIdLow = 0;
+		sFilterConfig.FilterMaskIdHigh = 0;
+		sFilterConfig.FilterMaskIdLow = 0;
+		sFilterConfig.FilterFIFOAssignment = 0;
+		sFilterConfig.FilterActivation = ENABLE;
+		sFilterConfig.BankNumber = 13;
+		HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+	}
+	else
+	{
+		/* CAN module filters are not used, all messages with standard 11-bit */
+		/* identifier will be received */
+		/* Configure mask 0 so, that all messages with standard identifier are accepted */
+		/*##-2- Configure the CAN Filter ###########################################*/
+		sFilterConfig.FilterNumber = 0;
+		sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;//CAN_FILTERMODE_IDMASK CAN_FILTERMODE_IDLIST
+		sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+		sFilterConfig.FilterIdHigh = 0x0000;
+		sFilterConfig.FilterIdLow = 0x0000;
+		sFilterConfig.FilterMaskIdHigh = 0;
+		sFilterConfig.FilterMaskIdLow = 0x0000;
+		sFilterConfig.FilterFIFOAssignment = 0;
+		sFilterConfig.FilterActivation = ENABLE;
+		sFilterConfig.BankNumber = 13;	
 		
-		
+		HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+	}
 
-
-    /* configure CAN interrupt registers */
-
-
-    return CO_ERROR_NO;
+	return CO_ERROR_NO;
 }
 
 
