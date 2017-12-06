@@ -35,6 +35,7 @@
 
 #define CAN_CLK               48000
 
+extern uint32_t can_error;
 extern CAN_HandleTypeDef hcan;
 extern void _Error_Handler(char * file, int line);
 static void CO_CANsendToModule(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer, uint8_t transmit_mailbox);
@@ -584,4 +585,23 @@ void CO_CANinterrupt_Tx(CO_CANmodule_t *CANmodule)
         /* Clear counter if no more messages */
         if(i == 0) CANmodule->CANtxCount = 0;
     }
+}
+
+void HAL_CAN_TxCpltCallback(CAN_HandleTypeDef* hcan)
+{
+	CO_CANinterrupt_Tx(CO->CANmodule[0]);
+}
+
+void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef* hcan)
+{
+	CO_CANinterrupt_Rx(CO->CANmodule[0]);
+	
+	/* enable CAN receive interrupts */
+	HAL_CAN_Receive_IT(hcan, CAN_FIFO0);
+}
+
+/* For debug CAN Errors Status*/
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
+{
+	can_error = HAL_CAN_GetError(hcan);
 }
